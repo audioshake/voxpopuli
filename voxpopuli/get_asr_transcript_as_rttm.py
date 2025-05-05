@@ -67,7 +67,7 @@ def get(args):
             out_path = cur_out_root / "{}-{}.ogg".format(event_id, r["id_"])
             timestamps = [(t[0], t[1]) for t in literal_eval(r["vad"])]
             if not Path(out_path).exists() or not Path(out_path).stat().st_size:
-                    items[in_path.as_posix()][out_path.as_posix()] = timestamps
+                items[in_path.as_posix()][out_path.as_posix()] = timestamps
             # convo_id = '-'.join(out_path.stem.split('-')[:4])
             convo_id = re.split(r'-[a-z]{2}_', out_path.stem)[0]  # Split at 'de_' and take the first part
             manifest.append(
