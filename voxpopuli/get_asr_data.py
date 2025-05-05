@@ -27,7 +27,7 @@ def cut_session(info: Tuple[str, Dict[str, List[Tuple[float, float]]]]) -> None:
     for out_path, timestamps in out_path_to_timestamps.items():
         segment = torch.cat(
             [waveform[:, int(s * sr): min(int(t * sr), duration)]
-             for s, t in timestamps],
+            for s, t in timestamps],
             dim=1
         )
         torchaudio.save(out_path, segment, sr)
@@ -35,57 +35,60 @@ def cut_session(info: Tuple[str, Dict[str, List[Tuple[float, float]]]]) -> None:
 
 def get(args):
     in_root = Path(args.root) / "raw_audios" / "original"
-    out_root = Path(args.root) / "transcribed_data" / args.lang
-    out_root.mkdir(exist_ok=True, parents=True)
-    # Get metadata TSV
-    url = f"{DOWNLOAD_BASE_URL}/annotations/asr/asr_{args.lang}.tsv.gz"
-    tsv_path = out_root / Path(url).name
-    if not tsv_path.exists():
-        download_url_to_file(url, (out_root / Path(url).name).as_posix())
-    with gzip.open(tsv_path, "rt") as f:
-        metadata = [x for x in csv.DictReader(f, delimiter="|")]
-    # Get segment into list
-    items = defaultdict(dict)
-    manifest = []
-    for r in tqdm(metadata):
-        split = r["split"]
-        if split not in SPLITS:
-            continue
-        event_id = r["session_id"]
-        year = event_id[:4]
-        in_path = in_root / year / f"{event_id}_original.ogg"
-        cur_out_root = out_root / year
-        cur_out_root.mkdir(exist_ok=True, parents=True)
-        out_path = cur_out_root / "{}-{}.ogg".format(event_id, r["id_"])
-        timestamps = [(t[0], t[1]) for t in literal_eval(r["vad"])]
-        if not Path(out_path).exists() or not Path(out_path).stat().st_size:
-            items[in_path.as_posix()][out_path.as_posix()] = timestamps
-        manifest.append(
-            (
-            out_path.stem,
-            r["original_text"],
-            r["normed_text"],
-            r["speaker_id"],
-            split,
-            r["gender"],
-            r.get("is_gold_transcript", str(False)),
-            r.get("accent", str(None))
+    for args.lang in ASR_LANGUAGES + ASR_ACCENTED_LANGUAGES:
+        
+        out_root = Path(args.root) / "transcribed_data" / args.lang
+        out_root.mkdir(exist_ok=True, parents=True)
+
+        # Get metadata TSV
+        url = f"{DOWNLOAD_BASE_URL}/annotations/asr/asr_{args.lang}.tsv.gz"
+        tsv_path = out_root / Path(url).name
+        if not tsv_path.exists():
+            download_url_to_file(url, (out_root / Path(url).name).as_posix())
+        with gzip.open(tsv_path, "rt") as f:
+            metadata = [x for x in csv.DictReader(f, delimiter="|")]
+        # Get segment into list
+        items = defaultdict(dict)
+        manifest = []
+        for r in tqdm(metadata):
+            split = r["split"]
+            if split not in SPLITS:
+                continue
+            event_id = r["session_id"]
+            year = event_id[:4]
+            in_path = in_root / year / f"{event_id}_original.ogg"
+            cur_out_root = out_root / year
+            cur_out_root.mkdir(exist_ok=True, parents=True)
+            out_path = cur_out_root / "{}-{}.ogg".format(event_id, r["id_"])
+            timestamps = [(t[0], t[1]) for t in literal_eval(r["vad"])]
+            if not Path(out_path).exists() or not Path(out_path).stat().st_size:
+                items[in_path.as_posix()][out_path.as_posix()] = timestamps
+            manifest.append(
+                (
+                out_path.stem,
+                r["original_text"],
+                r["normed_text"],
+                r["speaker_id"],
+                split,
+                r["gender"],
+                r.get("is_gold_transcript", str(False)),
+                r.get("accent", str(None))
+                )
             )
-        )
-    items = list(items.items())
-    # Segment
-    multiprocess_run(items, cut_session)
-    # Output per-split manifest
-    header = [
-        "id", "raw_text", "normalized_text", "speaker_id", "split",
-        "gender", "is_gold_transcript", "accent"
-    ]
-    for split in SPLITS:
-        with open(out_root / f"asr_{split}.tsv", "w") as f_o:
-            f_o.write("\t".join(header) + "\n")
-            for cols in manifest:
-                if cols[4] == split:
-                    f_o.write("\t".join(cols) + "\n")
+        items = list(items.items())
+        # Segment
+        multiprocess_run(items, cut_session)
+        # Output per-split manifest
+        header = [
+            "id", "raw_text", "normalized_text", "speaker_id", "split",
+            "gender", "is_gold_transcript", "accent"
+        ]
+        for split in SPLITS:
+            with open(out_root / f"asr_{split}.tsv", "w") as f_o:
+                f_o.write("\t".join(header) + "\n")
+                for cols in manifest:
+                    if cols[4] == split:
+                        f_o.write("\t".join(cols) + "\n")
 
 
 def get_args():
@@ -94,14 +97,15 @@ def get_args():
         "--root",
         help="data root path",
         type=str,
-        required=True,
+        default="/mnt/nas/original_datasets/voxpopuli",
+        required=False,
     )
-    parser.add_argument(
-        "--lang",
-        required=True,
-        type=str,
-        choices=ASR_LANGUAGES + ASR_ACCENTED_LANGUAGES,
-    )
+    # parser.add_argument(
+    #     "--lang",
+    #     required=True,
+    #     type=str,
+    #     choices=ASR_LANGUAGES + ASR_ACCENTED_LANGUAGES,
+    # )
     return parser.parse_args()
 
 
