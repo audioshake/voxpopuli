@@ -4,11 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 
 from typing import Optional
-
-from tqdm.contrib.concurrent import process_map
+import concurrent.futures
+from tqdm import tqdm
 
 
 def multiprocess_run(
         a_list: list, func: callable, n_workers: Optional[int] = None
 ):
-    process_map(func, a_list, max_workers=n_workers, chunksize=1)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=n_workers) as executor:
+        results = list(tqdm(executor.map(func, a_list), total=len(a_list)))
+    return results
